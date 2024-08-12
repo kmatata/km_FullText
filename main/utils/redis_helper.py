@@ -3,8 +3,6 @@ import os
 from .envLoader import load_environment_variables
 
 load_environment_variables()
-print(os.getenv("DYNAMIC_PROXY"))
-
 
 def get_redis_connection():
     host = os.getenv("REDIS_HOST")
