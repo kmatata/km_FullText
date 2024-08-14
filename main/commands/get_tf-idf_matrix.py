@@ -1,8 +1,9 @@
-from utils.redis_helper import get_redis_connection
+from utils.redis_helper import get_redis_connection, get_tokenized_stop_words
 from rejson import Path
 import time
 import redis
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sparse_dot_topn import sp_matmul_topn
 
 
 def fetch_data(stream_key):
@@ -21,7 +22,7 @@ def fetch_data(stream_key):
             # Now fetch only the keys of each JSON object
             all_keys = redis_db.jsonobjkeys(data_key, "$.[0:]")
             # print('\n',all_keys)
-            all_data[data_key] = all_keys
+            all_data[data_key] = [str(key).lower() for key in all_keys]
     except redis.exceptions.ResponseError as re:
         raise Exception(f"Redis response error: {re}")
     except Exception as e:
@@ -30,49 +31,57 @@ def fetch_data(stream_key):
     return all_data
 
 
-def extract_keys(json_objects):
-    if not json_objects:
-        return []
-    keys = []
-    for obj in json_objects:
-        keys.extend(name.lower() for name in obj)
-    return keys
-
-
-def create_combined_tfidf_matrix(documents_list: list):
-    vectorizer = TfidfVectorizer()
-    combined_documents = [
-        doc for sublist in documents_list for doc in sublist
-    ]  # Flatten the list of lists
-    combined_tfidf_matrix = vectorizer.fit_transform(combined_documents)
-    return vectorizer, combined_tfidf_matrix
+def format_similarity_results(matrix, documents1, documents2, top_n):
+    # Extract the top_n similarities and their indices from the sparse matrix
+    results = []
+    cx = matrix.tocoo()
+    for i, j, v in zip(cx.row, cx.col, cx.data):
+        results.append((documents1[i], documents2[j], v))
+    # Sort results by similarity score in descending order
+    results.sort(key=lambda x: x[2], reverse=True)
+    return results[:top_n]
 
 
 if __name__ == "__main__":
     redis_db = get_redis_connection()
     if redis_db:
         try:
+            tokenized_stop_words = get_tokenized_stop_words(redis_db)
             json_event_stream = fetch_data("THREE_WAY_stream")
+            all_team_keys = [
+                key for keys in json_event_stream.values() for key in keys
+            ]  # Single flatten operation
+
+            vectorizer = TfidfVectorizer(stop_words=tokenized_stop_words)
+            combined_matrix = vectorizer.fit_transform(all_team_keys)
+
+            start = 0
             tfidf_matrices = {}
-            all_team_keys = []
+            document_sets = []
             for data_key, keys in json_event_stream.items():
-                team_keys = extract_keys(keys)
-                all_team_keys.append(team_keys)
-                print(team_keys, "\n")
-            documents1 = all_team_keys[0] if len(all_team_keys) > 0 else []
-            documents2 = all_team_keys[1] if len(all_team_keys) > 1 else []
+                end = start + len(keys)
+                tfidf_matrices[data_key] = combined_matrix[start:end]
+                document_sets.append(keys)
+                start = end
+                print(
+                    f"TF-IDF matrix for {data_key} has shape {tfidf_matrices[data_key].shape}"
+                )
 
-            # Create a combined TF-IDF vectorizer and matrix for all documents
-            vectorizer, combined_matrix = create_combined_tfidf_matrix(
-                [documents1, documents2]
-            )
-
-            # Now extract submatrices for each original set of documents
-            tfidf_matrix1 = vectorizer.transform(documents1)
-            print(f"TF-IDF matrix for data_key1 has shape {tfidf_matrix1.shape}")
-            tfidf_matrix2 = vectorizer.transform(documents2)
-
-            print(f"TF-IDF matrix for data_key2 has shape {tfidf_matrix2.shape}")
+            for i, (doc_set1, matrix1) in enumerate(tfidf_matrices.items()):
+                for j, (doc_set2, matrix2) in enumerate(
+                    list(tfidf_matrices.items())[i + 1 :], i + 1
+                ):
+                    C = sp_matmul_topn(
+                        matrix1, matrix2.transpose(), top_n=50, threshold=0.7
+                    )
+                    formatted_results = format_similarity_results(
+                        C, document_sets[i], document_sets[j], 50
+                    )
+                    print(
+                        f"\nTop-10 cosine similarities between document set {i} and {j}:\n"
+                    )
+                    for doc1, doc2, score in formatted_results:
+                        print(f"{doc1} <-> {doc2} with similarity {score:.4f}")
 
         except Exception as e:
             print(f"An error occurred: {e}")

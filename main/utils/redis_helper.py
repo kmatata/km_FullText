@@ -4,10 +4,11 @@ from .envLoader import load_environment_variables
 
 load_environment_variables()
 
-def get_redis_connection():
+
+def get_redis_connection(db=os.getenv("REDIS_DB")):
     host = os.getenv("REDIS_HOST")
     port = int(os.getenv("REDIS_PORT"))
-    db = int(os.getenv("REDIS_DB"))
+    db = int(db)
     password = os.getenv("REDIS_PASS", None)
     try:
         r_db = RedisJSON(
@@ -21,10 +22,15 @@ def get_redis_connection():
         return None
 
 
-def save_data_to_redis(r_db, key, value):
-    if r_db is not None:
-        try:
-            r_db.set(key, value)
-            print(f"Data saved to Redis: {key} -> {value}")
-        except Exception as e:
-            print(f"Failed to save data to Redis: {str(e)}")
+def get_tokenized_stop_words(redis_client):
+    try:
+        # Retrieve the tokenized stop words from Redis
+        tokenized_stop_words = redis_client.jsonget("tokenized_stop_words", ".")
+
+        if tokenized_stop_words is None:
+            raise ValueError("No tokenized stop words found in Redis.")
+
+        return list(tokenized_stop_words)
+
+    except Exception as e:
+        raise Exception(f"Failed to retrieve tokenized stop words from Redis: {e}")
