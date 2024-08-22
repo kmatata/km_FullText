@@ -1,4 +1,4 @@
-from rejson import Client as RedisJSON
+from redis import Redis
 import os
 from .envLoader import load_environment_variables
 
@@ -11,7 +11,7 @@ def get_redis_connection(db=os.getenv("REDIS_DB")):
     db = int(db)
     password = os.getenv("REDIS_PASS", None)
     try:
-        r_db = RedisJSON(
+        r_db = Redis(
             host=host, port=port, db=db, password=password, decode_responses=True
         )
         r_db.ping()  # Check the connection
@@ -22,10 +22,10 @@ def get_redis_connection(db=os.getenv("REDIS_DB")):
         return None
 
 
-def get_tokenized_stop_words(redis_client):
+def get_tokenized_stop_words(redis_client:Redis):
     try:
         # Retrieve the tokenized stop words from Redis
-        tokenized_stop_words = redis_client.jsonget("tokenized_stop_words", ".")
+        tokenized_stop_words = redis_client.json().get("tokenized_stop_words", ".")
 
         if tokenized_stop_words is None:
             raise ValueError("No tokenized stop words found in Redis.")

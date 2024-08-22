@@ -1,6 +1,14 @@
 stop_words = [
-    "draw",
-    "ac",
+    ";",
+    "sportsklubben",
+    "sk",
+    "vfv",
+    "united",
+    "town",
+    "city",
+    "olympic",
+    "county",
+    "olympique" "ac",
     "athletic club",
     "associazione di calcio",
     "afc",
@@ -93,3 +101,21 @@ stop_words = [
     "womens",
     "women",
 ]
+
+stream_config = {
+    "btts": {
+        "live": "BTTS_live_stream",
+        "upcoming": "BTTS_upcoming_stream",
+        "least_count": 2,
+    },
+    "double_chance": {
+        "live": "DOUBLE_CHANCE_live_stream",
+        "upcoming": "DOUBLE_CHANCE_upcoming_stream",
+        "least_count": 3,
+    },
+    "three_way": {
+        "live": "THREE_WAY_live_stream",
+        "upcoming": "THREE_WAY_upcoming_stream",
+        "least_count": 3,
+    },
+}

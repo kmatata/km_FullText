@@ -31,7 +31,7 @@ if redis_client:
         tokenized_stop_words.update(tokens)
 
     # Store the tokenized words in Redis as a JSON array
-    redis_client.jsonset("tokenized_stop_words", ".", list(tokenized_stop_words))
+    redis_client.json().set("tokenized_stop_words", ".", list(tokenized_stop_words))
     print("Tokenized stop words loaded into Redis.")
 else:
     print("Failed to connect to Redis. Tokenized stop words not loaded.")
