@@ -162,4 +162,4 @@ cython_debug/
 *.json
 venv
 .DS_Store
-main/utils/nltk_config/
+/utils/nltk_config/

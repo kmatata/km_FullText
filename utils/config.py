@@ -107,15 +107,21 @@ stream_config = {
         "live": "BTTS_live_stream",
         "upcoming": "BTTS_upcoming_stream",
         "least_count": 2,
+        "lst": 3,
+        "xtr": 2,
     },
     "double_chance": {
         "live": "DOUBLE_CHANCE_live_stream",
         "upcoming": "DOUBLE_CHANCE_upcoming_stream",
         "least_count": 3,
+        "lst": 3,
+        "xtr": 2,
     },
     "three_way": {
         "live": "THREE_WAY_live_stream",
         "upcoming": "THREE_WAY_upcoming_stream",
         "least_count": 3,
+        "lst": 3,
+        "xtr": 2,
     },
 }

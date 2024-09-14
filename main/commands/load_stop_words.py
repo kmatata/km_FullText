@@ -8,7 +8,9 @@ from utils.redis_helper import get_redis_connection
 load_environment_variables()
 
 # Specify the custom directory where you want to store NLTK resources
-nltk_data_dir = os.path.join(os.path.dirname(__file__),"..","utils", "nltk_config")
+nltk_data_dir = os.path.join(
+    os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
+)
 
 os.makedirs(nltk_data_dir, exist_ok=True)
 
