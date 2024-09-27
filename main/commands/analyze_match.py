@@ -2,6 +2,7 @@ from utils.redis_helper import (
     get_redis_connection,
     get_tokenized_stop_words,
     create_consumer_group,
+    trim_stream,
 )
 from redis.commands.json.path import Path
 from redis.exceptions import ResponseError
@@ -37,7 +38,7 @@ def fetch_data(redis_db, json_keys):
         return []
 
 
-def format_similarity_results(matrix, documents1, documents2, top_n):
+def format_similarity_results(matrix, documents1, documents2):
     # Extract the top_n similarities and their indices from the sparse matrix
     results = []
     cx = matrix.tocoo()
@@ -45,7 +46,7 @@ def format_similarity_results(matrix, documents1, documents2, top_n):
         results.append((documents1[i], documents2[j], v))
     # Sort results by similarity score in descending order
     results.sort(key=lambda x: x[2], reverse=True)
-    return results[:top_n]
+    return results
 
 
 def generate_unique_id():
@@ -120,13 +121,12 @@ def run_tfidf_analysis(prefix, category, period):
                         matrix1 = tfidf_matrices[data_keys[i]]
                         matrix2 = tfidf_matrices[data_keys[j]]
                         C = sp_matmul_topn(
-                            matrix1, matrix2.transpose(), top_n=50, threshold=0.66
+                            matrix1, matrix2.transpose(), top_n=1000, threshold=0.66
                         )
                         formatted_results = format_similarity_results(
                             C,
                             document_paths[data_keys[i]],
                             document_paths[data_keys[j]],
-                            50,
                         )
 
                         for doc1, doc2, score in formatted_results:
@@ -161,6 +161,7 @@ def run_tfidf_analysis(prefix, category, period):
                 # Acknowledge all messages in the batch
                 for msg_id, _ in message_buffer:
                     redis_db.xack(stream_name, group_name, msg_id)
+                    trim_stream(redis_db, stream_name, 100)
 
                 # Clear the buffer
                 message_buffer.clear()
@@ -176,10 +177,12 @@ def update_redis_with_grouped_info(
 ):
     team_names = []
     match_team_objects = {}
+    match_date = None
     for index in group:
         data_key, path = index_mapping[index]
         team_name = redis_db.json().objkeys(data_key, Path(f"$.[{path}].teams"))[0][0]
         bookmaker = redis_db.json().get(data_key, Path(f"$.[{path}].bookmaker"))[0]
+        match_date = redis_db.json().get(data_key, Path(f"$.[{path}].target_date"))[0]
         json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
         match_team_objects[bookmaker] = json_obj
         team_names.append(team_name)
@@ -193,7 +196,10 @@ def update_redis_with_grouped_info(
                 "match_team_objects": match_team_objects,
                 "teams": team_names_str,
                 "created": get_current_date(),
-                "updated": "",
+                "arbitrage": 0,
+                "arb_updated": 0,
+                "bookie_updated": 0,
+                "match_date": match_date,
             },
         )
         stream_id = redis_db.xadd(stream_key, {"data_key": match_key})

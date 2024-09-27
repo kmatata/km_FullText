@@ -42,3 +42,27 @@ def create_consumer_group(redis_conn:redis.Redis, stream_name, group_name):
     except redis.exceptions.ResponseError as e:
         if "BUSYGROUP Consumer Group name already exists" not in str(e):
             raise
+
+def trim_stream(r_db: redis.Redis, stream_key, max_len=1000):
+    """
+    Trim the stream to keep only the latest 1000 entries.
+    """
+    try:
+        current_length = r_db.xlen(stream_key)
+        if current_length > max_len:
+            # Get the oldest entry (first entry in the stream)
+            oldest_entry = r_db.xrange(stream_key, count=1)
+            
+            # Perform the trim operation
+            num_trimmed = r_db.xtrim(stream_key, maxlen=max_len, approximate=False)
+            
+            if oldest_entry:
+                oldest_id, oldest_data = oldest_entry[0]
+                print(f"Trimmed {num_trimmed} entries from stream {stream_key}.")
+                print(f"Oldest entry removed: ID={oldest_id}, Data={oldest_data}")
+            else:
+                print(f"Trimmed {num_trimmed} entries from stream {stream_key}, but couldn't retrieve the oldest entry.")
+        else:
+            print(f"No trimming needed for stream {stream_key}. Current length: {current_length}")
+    except Exception as e:
+        print(f"Error trimming stream {stream_key}: {e}")

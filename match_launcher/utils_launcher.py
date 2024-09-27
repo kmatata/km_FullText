@@ -50,3 +50,6 @@ def get_redis_connection():
     except Exception as e:
         print(f"Failed to connect to Redis: {e}")
         return None
+    
+def check_stop_file():
+    return os.path.exists("/home/matata-7920/stop_launchers.txt")
