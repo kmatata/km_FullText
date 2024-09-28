@@ -4,39 +4,51 @@ import os
 import time
 import docker
 from dotenv import load_dotenv
+from logger_byLauncher import Logger
+import traceback
 
 # Load environment variables
 dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(dotenv_path=dotenv_path)
+logger = Logger(__name__)
+logger.clear_old_logs()
+logger.info(f"RUNNING FILE \n\n @---{__file__}---\n")
 
 
-def manage_docker_containers(client:docker.DockerClient, image_name, container_name, **container_options):
+def manage_docker_containers(
+    client: docker.DockerClient, image_name, container_name, **container_options
+):
     try:
         container = client.containers.get(container_name)
         if container.status != "running":
             container.start()
     except docker.errors.NotFound:
-        print("Container not found, creating and starting...")
+        logger.info("Container not found, creating and starting...")
         container = client.containers.run(
-            image_name, detach=True, remove=True, name=container_name, network="chrome-net", **container_options
+            image_name,
+            detach=True,
+            name=container_name,
+            network="chrome-net",
+            **container_options,
         )
     return container
 
-def stop_containers(docker_client:docker.DockerClient, containers):
+
+def stop_containers(docker_client: docker.DockerClient, containers):
     for container_name in containers:
         try:
             container = docker_client.containers.get(container_name)
             container.stop()
-            print(f"Stopped container: {container_name}")
+            logger.info(f"Stopped container: {container_name}")
         except docker.errors.NotFound:
-            print(f"Container {container_name} not found.")
+            logger.warning(f"Container {container_name} not found.")
         except Exception as e:
-            print(f"Error stopping container {container_name}: {e}")
+            logger.warning(f"Error stopping container {container_name}: {e}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python script.py <lst|xtr> <data_source: live|upcoming>")
+        logger.warning("Usage: python script.py <lst|xtr> <data_source: live|upcoming>")
         sys.exit(1)
 
     prefix = sys.argv[1]
@@ -45,13 +57,15 @@ if __name__ == "__main__":
     redis_client = get_redis_connection()
     if not redis_client:
         sys.exit(1)
-    extractor_types = ["btts", "three_way", "double_chance"] if prefix == "lst" else ["btts"]
+    extractor_types = (
+        ["btts", "three_way", "double_chance"] if prefix == "lst" else ["btts"]
+    )
     active_containers = []
-    print("running tfidf launchers\n")
+    logger.info("running tfidf launchers\n")
     while True:
         try:
             if check_stop_file():
-                print("Stop file detected. Stopping containers and exiting...")
+                logger.info("Stop file detected. Stopping containers and exiting...")
                 stop_containers(docker_client, active_containers)
                 sys.exit(0)
             image_name = "match/tfidf"
@@ -70,15 +84,24 @@ if __name__ == "__main__":
                 )
                 if container_name not in active_containers:
                     active_containers.append(container_name)
-                print(f"tfidf container: {container_name}")
+                logger.info(f"tfidf container: {container_name}")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            error_details = traceback.extract_tb(exc_traceback)
+
+            error_message = f"An error occurred: {str(e)}\n"
+            error_message += "Traceback (most recent call last):\n"
+            for frame in error_details:
+                filename = os.path.basename(frame.filename)
+                error_message += (
+                    f'  File "{filename}", line {frame.lineno}, in {frame.name}\n'
+                )
+                error_message += f"    {frame.line}\n"
+            error_message += f"{exc_type.__name__}: {str(e)}"
+            logger.warning(f"An error occurred: {error_message}")
+            sys.exit(1)
         except KeyboardInterrupt:
-            print("Stopping containers and exiting...")
-            stop_containers(docker_client, active_containers)
+            logger.warning("Stopping containers and exiting...")
             sys.exit()
-        print("waiting")
-        if data_source == "live":
-            time.sleep(1)
-        else:
-            time.sleep(10)
+        logger.info("waiting")
+        time.sleep(60)

@@ -9,7 +9,7 @@ load_environment_variables()
 def import_and_run_analyze_match():
 
     try:
-        module = import_module("commands.analyze_match")
+        module = import_module("commands.arb_match")
         module.run_tfidf_analysis(prefix, category, period)
     except ImportError as e:
         print(f"Failed to import module: {e}")

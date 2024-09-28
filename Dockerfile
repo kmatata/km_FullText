@@ -8,6 +8,8 @@ ENV PYTHONUNBUFFERED 1
 RUN apt-get update -y 
 RUN useradd -m -d /home/tfidif_er -s /bin/bash tfidif_er
 
+RUN mkdir -p /var/log/analyzeMatch \
+    && chown -R tfidif_er:tfidif_er /var/log/analyzeMatch
 
 # Install Python dependencies
 COPY ./requirements.txt /main/requirements.txt

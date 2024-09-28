@@ -1,5 +1,6 @@
 import pytz
 from datetime import datetime
+import uuid
 
 def get_current_date():
     # Define the East African Timezone (EAT)
@@ -28,3 +29,7 @@ def union(parent, rank, x, y):
         else:
             parent[yroot] = xroot
             rank[xroot] += 1
+
+def generate_match_id():
+    """Generate a universally unique identifier for matches."""
+    return str(uuid.uuid4())
