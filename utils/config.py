@@ -1,5 +1,6 @@
 stop_words = [
     ";",
+    "/",
     "sportsklubben",
     "sk",
     "vfv",

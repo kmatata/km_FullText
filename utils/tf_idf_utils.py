@@ -41,39 +41,50 @@ def format_similarity_results(matrix, documents1, documents2):
 
 
 def update_redis_with_grouped_info(
-    redis_db, group, index_mapping, match_key, stream_key, match_id, least_count
+    redis_db, group, index_mapping, stream_key, least_count, stream_name
 ):
-    team_names = []
-    match_team_objects = {}
-    match_date = None
+    grouped_by_start_time = defaultdict(list)
     for index in group:
         data_key, path = index_mapping[index]
-        team_name = redis_db.json().objkeys(data_key, Path(f"$.[{path}].teams"))[0][0]
-        bookmaker = redis_db.json().get(data_key, Path(f"$.[{path}].bookmaker"))[0]
-        match_date = redis_db.json().get(data_key, Path(f"$.[{path}].target_date"))[0]
         json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
-        match_team_objects[bookmaker] = json_obj
-        team_names.append(team_name)
+        # Extract start_time from the JSON object
+        start_time = json_obj.get("start_time")
 
-    if len(team_names) >= least_count:
-        team_names_str = ";".join(team_names)
-        redis_db.json().set(
-            match_key,
-            Path.root_path(),
-            {
-                "match_team_objects": match_team_objects,
-                "teams": team_names_str,
-                "created": get_current_date(),
-                "arbitrage": 0,
-                "arb_updated": 0,
-                "bookie_updated": 0,
-                "match_date": match_date,
-            },
-        )
-        stream_id = redis_db.xadd(stream_key, {"data_key": match_key})
-        print(
-            f"--\nUpdated match info in Redis under key {match_key} \nwith teams {team_names_str} \nwith match_id {match_id} \nunder {stream_key}"
-        )
+        if start_time:
+            grouped_by_start_time[start_time].append((data_key, path, json_obj))
+
+    for start_time, entries in grouped_by_start_time.items():
+        if len(entries) >= least_count:
+            match_id = generate_match_id()
+            match_key = f"matched_teams_{stream_name}:{match_id}"
+            team_names = []
+            match_date = None
+            match_team_objects = {}
+            for data_key, path, json_obj in entries:
+                bookmaker = json_obj.get("bookmaker")
+                match_date = json_obj.get("target_date")
+                team_name = list(json_obj.get("teams", {}).keys())[0]
+                match_team_objects[bookmaker] = json_obj
+                team_names.append(team_name)
+            team_names_str = ";".join(team_names)
+            redis_db.json().set(
+                match_key,
+                Path.root_path(),
+                {
+                    "match_team_objects": match_team_objects,
+                    "teams": team_names_str,
+                    "created": get_current_date(),
+                    "arbitrage": 0,
+                    "arb_updated": 0,
+                    "bookie_updated": 0,
+                    "match_date": match_date,
+                    "start_time": start_time,
+                },
+            )
+            stream_id = redis_db.xadd(stream_key, {"data_key": match_key})
+            print(
+                f"--\nUpdated match info in Redis under key {match_key} \nwith teams {team_names_str} \nwith match_id {match_id} \nunder {stream_key}\nwith start_time {start_time}"
+            )
 
 
 def process_batch(
@@ -123,7 +134,7 @@ def process_batch(
                 matrix1 = tfidf_matrices[data_keys[i]]
                 matrix2 = tfidf_matrices[data_keys[j]]
                 C = sp_matmul_topn(
-                    matrix1, matrix2.transpose(), top_n=1000, threshold=0.66
+                    matrix1, matrix2.transpose(), top_n=1000, threshold=0.75
                 )
                 formatted_results = format_similarity_results(
                     C,
@@ -149,16 +160,8 @@ def process_batch(
             groups[root].append(index)
 
         for group in groups.values():
-            match_id = generate_match_id()
-            match_key = f"matched_teams_{stream_name}:{match_id}"
             update_redis_with_grouped_info(
-                redis_db,
-                group,
-                index_mapping,
-                match_key,
-                stream_key,
-                match_id,
-                least_count,
+                redis_db, group, index_mapping, stream_key, least_count, stream_name
             )
 
         # After analysis, update Redis and acknowledge messages
@@ -169,3 +172,39 @@ def process_batch(
         print(f"Processed batch of {len(batch)} messages")
     except Exception as e:
         raise e
+
+
+# def update_redis_with_grouped_info(
+#     redis_db, group, index_mapping, match_key, stream_key, match_id, least_count
+# ):
+#     team_names = []
+#     match_team_objects = {}
+#     match_date = None
+#     for index in group:
+#         data_key, path = index_mapping[index]
+#         team_name = redis_db.json().objkeys(data_key, Path(f"$.[{path}].teams"))[0][0]
+#         bookmaker = redis_db.json().get(data_key, Path(f"$.[{path}].bookmaker"))[0]
+#         match_date = redis_db.json().get(data_key, Path(f"$.[{path}].target_date"))[0]
+#         json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
+#         match_team_objects[bookmaker] = json_obj
+#         team_names.append(team_name)
+
+#     if len(team_names) >= least_count:
+#         team_names_str = ";".join(team_names)
+#         redis_db.json().merge(
+#             match_key,
+#             Path.root_path(),
+#             {
+#                 "match_team_objects": match_team_objects,
+#                 "teams": team_names_str,
+#                 "created": get_current_date(),
+#                 "arbitrage": 0,
+#                 "arb_updated": 0,
+#                 "bookie_updated": 0,
+#                 "match_date": match_date,
+#             },
+#         )
+#         stream_id = redis_db.xadd(stream_key, {"data_key": match_key})
+#         print(
+#             f"--\nUpdated match info in Redis under key {match_key} \nwith teams {team_names_str} \nwith match_id {match_id} \nunder {stream_key}"
+#         )
