@@ -2,14 +2,14 @@
 FROM python:3.10
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update -y 
-RUN useradd -m -d /home/tfidif_er -s /bin/bash tfidif_er
+RUN useradd -m -d /home/tfidf -s /bin/bash tfidf
 
 RUN mkdir -p /var/log/analyzeMatch \
-    && chown -R tfidif_er:tfidif_er /var/log/analyzeMatch
+    && chown -R tfidf:tfidf /var/log/analyzeMatch
 
 # Install Python dependencies
 COPY ./requirements.txt /main/requirements.txt
@@ -19,7 +19,7 @@ COPY ./.env main/.env
 # Create and set the working directory in the container
 WORKDIR /main
 
-USER tfidif_er
+USER tfidf
 ENV REDIS_HOST=redis-stack
 # Copy the mainlication files into the container
 COPY ./main/commands/ /main/commands/

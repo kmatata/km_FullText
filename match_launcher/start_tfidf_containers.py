@@ -1,4 +1,4 @@
-from utils_launcher import get_redis_connection, check_stop_file
+from utils_launcher import check_stop_file
 import sys
 import os
 import time
@@ -27,6 +27,7 @@ def manage_docker_containers(
         container = client.containers.run(
             image_name,
             detach=True,
+            # remove=True,
             name=container_name,
             network="chrome-net",
             **container_options,
@@ -48,15 +49,12 @@ def stop_containers(docker_client: docker.DockerClient, containers):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        logger.warning("Usage: python script.py <lst|xtr> <data_source: live|upcoming>")
+        logger.warning("Usage: python match_launcher/start_tfidf_containers.py <lst|xtr> <data_source: live|upcoming>")
         sys.exit(1)
 
     prefix = sys.argv[1]
     data_source = sys.argv[2]
     docker_client = docker.from_env()
-    redis_client = get_redis_connection()
-    if not redis_client:
-        sys.exit(1)
     extractor_types = (
         ["btts", "three_way", "double_chance"] if prefix == "lst" else ["btts"]
     )
@@ -74,7 +72,7 @@ if __name__ == "__main__":
                 container_name = f"{prefix}tfidf_{extractor_type}_{data_source}"
                 container_options = {
                     "environment": [
-                        "PREFIX=" + sys.argv[1],
+                        "PREFIX=" + prefix,
                         "CATEGORY=" + extractor_type,
                         "PERIOD=" + data_source,
                     ]

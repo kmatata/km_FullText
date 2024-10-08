@@ -8,8 +8,13 @@ from utils.redis_helper import get_redis_connection
 load_environment_variables()
 
 # Specify the custom directory where you want to store NLTK resources
+# non docker env
+# nltk_data_dir = os.path.join(
+#     os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
+# )
+# docker env
 nltk_data_dir = os.path.join(
-    os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
+    os.path.dirname(__file__), "..", "utils", "nltk_config"
 )
 
 os.makedirs(nltk_data_dir, exist_ok=True)
@@ -22,18 +27,26 @@ if not os.path.exists(os.path.join(nltk_data_dir, "tokenizers", "punkt_tab")):
     print("Punkt tokenizer not found. Downloading...")
     nltk.download("punkt_tab", download_dir=nltk_data_dir, quiet=True)
 
-# Get Redis connection
-redis_client = get_redis_connection()
+def load_stop_words_to_redis(stop_words=stop_words):
+    # Get Redis connection
+    redis_client = get_redis_connection()
 
-if redis_client:
-    # Tokenize each stop word phrase
-    tokenized_stop_words = set()
-    for stop_word in stop_words:
-        tokens = word_tokenize(stop_word)
-        tokenized_stop_words.update(tokens)
+    if redis_client:
+        # Check if the key already exists in Redis
+        if not redis_client.exists("tokenized_stop_words"):
+            # Tokenize each stop word phrase
+            tokenized_stop_words = set()
+            for stop_word in stop_words:
+                tokens = word_tokenize(stop_word)
+                tokenized_stop_words.update(tokens)
 
-    # Store the tokenized words in Redis as a JSON array
-    redis_client.json().set("tokenized_stop_words", ".", list(tokenized_stop_words))
-    print("Tokenized stop words loaded into Redis.")
-else:
-    print("Failed to connect to Redis. Tokenized stop words not loaded.")
+            # Store the tokenized words in Redis as a JSON array
+            redis_client.json().set("tokenized_stop_words", ".", list(tokenized_stop_words))
+            print("Tokenized stop words loaded into Redis.")
+        else:
+            print("Tokenized stop words already exist in Redis. Skipping insertion.")
+    else:
+        print("Failed to connect to Redis. Tokenized stop words not loaded.")
+
+if __name__ == "__main__":
+    load_stop_words_to_redis()

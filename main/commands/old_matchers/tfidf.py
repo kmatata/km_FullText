@@ -208,3 +208,42 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Stopped by user.")
         sys.exit()
+
+
+
+# old tfidf util
+
+# def update_redis_with_grouped_info(
+#     redis_db, group, index_mapping, match_key, stream_key, match_id, least_count
+# ):
+#     team_names = []
+#     match_team_objects = {}
+#     match_date = None
+#     for index in group:
+#         data_key, path = index_mapping[index]
+#         team_name = redis_db.json().objkeys(data_key, Path(f"$.[{path}].teams"))[0][0]
+#         bookmaker = redis_db.json().get(data_key, Path(f"$.[{path}].bookmaker"))[0]
+#         match_date = redis_db.json().get(data_key, Path(f"$.[{path}].target_date"))[0]
+#         json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
+#         match_team_objects[bookmaker] = json_obj
+#         team_names.append(team_name)
+
+#     if len(team_names) >= least_count:
+#         team_names_str = ";".join(team_names)
+#         redis_db.json().merge(
+#             match_key,
+#             Path.root_path(),
+#             {
+#                 "match_team_objects": match_team_objects,
+#                 "teams": team_names_str,
+#                 "created": get_current_date(),
+#                 "arbitrage": 0,
+#                 "arb_updated": 0,
+#                 "bookie_updated": 0,
+#                 "match_date": match_date,
+#             },
+#         )
+#         stream_id = redis_db.xadd(stream_key, {"data_key": match_key})
+#         print(
+#             f"--\nUpdated match info in Redis under key {match_key} \nwith teams {team_names_str} \nwith match_id {match_id} \nunder {stream_key}"
+#         )
