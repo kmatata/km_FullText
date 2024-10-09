@@ -58,6 +58,9 @@ if __name__ == "__main__":
     extractor_types = (
         ["btts", "three_way", "double_chance"] if prefix == "lst" else ["btts"]
     )
+    # extractor_types = (
+    #     ["btts"] if prefix == "lst" else ["btts"]
+    # )
     active_containers = []
     logger.info("running tfidf launchers\n")
     while True:

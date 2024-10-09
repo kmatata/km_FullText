@@ -91,6 +91,7 @@ def update_redis_with_grouped_info(
                         "bookie_updated": 0,
                         "match_date": match_date,
                         "start_time": start_time,
+                        "arbitrage_opportunities": [],
                     },
                 )
                 stream_id = redis_db.xadd(stream_key, {"data_key": match_key})
@@ -152,7 +153,7 @@ def process_batch(
                 matrix1 = tfidf_matrices[data_keys[i]]
                 matrix2 = tfidf_matrices[data_keys[j]]
                 C = sp_matmul_topn(
-                    matrix1, matrix2.transpose(), top_n=1000, threshold=0.66
+                    matrix1, matrix2.transpose(), top_n=2000, threshold=0.5
                 )
                 formatted_results = format_similarity_results(
                     C,
