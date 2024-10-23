@@ -95,7 +95,7 @@ def run_tfidf_analysis(prefix, category, period):
                     )
                 else:
                     logger.info("No new messages, sleeping for 0.1 seconds")
-                    time.sleep(0.1)
+                    time.sleep(5)
                     # Clear the buffer
                     # message_buffer.clear()
             except ResponseError as e:

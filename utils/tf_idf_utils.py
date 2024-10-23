@@ -155,7 +155,7 @@ def process_batch(
                 matrix1 = tfidf_matrices[data_keys[i]]
                 matrix2 = tfidf_matrices[data_keys[j]]
                 C = sp_matmul_topn(
-                    matrix1, matrix2.transpose(), top_n=2000, threshold=0.5
+                    matrix1, matrix2.transpose(), top_n=2000, threshold=0.56
                 )
                 formatted_results = format_similarity_results(
                     C,

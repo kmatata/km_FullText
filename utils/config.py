@@ -111,6 +111,7 @@ stop_words = [
     "men",
     "womens",
     "women",
+    "wom",
     "as",
     "sportiva",
     "junior",

@@ -41,7 +41,6 @@ def load_stop_words_to_redis(stop_words=stop_words):
             for stop_word in enhanced_stop_words:
                 tokens = word_tokenize(stop_word)
                 tokenized_stop_words.update(tokens)
-
             # Store the tokenized words in Redis as a JSON array
             redis_client.json().set("tokenized_stop_words", ".", list(tokenized_stop_words))
             print("Tokenized stop words loaded into Redis.")

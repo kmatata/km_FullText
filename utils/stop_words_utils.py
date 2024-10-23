@@ -28,26 +28,20 @@ def generate_roman_numeral_stop_words(max_number=50):
         return roman_num
 
     numerals = [int_to_roman(i) for i in range(1, max_number + 1)]
-    patterns = []
-
-    # Add standalone numerals and common patterns
+    # Add variations of each numeral (lowercase, etc.)
+    tokenized_numerals = set()
     for numeral in numerals:
-        patterns.append(numeral)
-        patterns.extend(
-            [
-                f"team {numeral}",
-                f"division {numeral}",
-                f"div {numeral}",
-                f"group {numeral}",
-                f"serie {numeral}",
-                f"liga {numeral}",
-                f"{numeral} liga",
-                f"{numeral} division",
-                f"{numeral} div",
-            ]
-        )
+        tokenized_numerals.add(numeral.lower())  # Lowercase
+        
+        # Don't add phrases, just the key identifying words
+        tokenized_numerals.add('team')
+        tokenized_numerals.add('division')
+        tokenized_numerals.add('div')
+        tokenized_numerals.add('group')
+        tokenized_numerals.add('serie')
+        tokenized_numerals.add('liga')
 
-    return patterns
+    return list(tokenized_numerals)
 
 
 def enhance_stop_words(base_stop_words):
@@ -66,4 +60,4 @@ def enhance_stop_words(base_stop_words):
         base_stop_words + year_stop_words + year_related_terms + roman_stop_words
     )
 
-    return enhanced_stop_words
+    return list(enhanced_stop_words)
