@@ -48,10 +48,12 @@ def update_redis_with_grouped_info(
     redis_db, group, index_mapping, stream_key, least_count, stream_name, logger
 ):
     logger.info(f"Updating Redis with grouped info for {len(group)} items")
+    logger.debug(group)
     grouped_by_start_time = defaultdict(list)
     for index in group:
         try:
             data_key, path = index_mapping[index]
+            logger.info(f"data_key: {data_key} \npath: {path}")
             json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
             # Extract start_time from the JSON object
             start_time = json_obj.get("start_time")
@@ -163,8 +165,6 @@ def process_batch(
                 )
 
                 for doc1, doc2, score in formatted_results:
-                    # Resolve or generate unique match ID
-                    # Here you would update Redis based on doc1 and doc2 paths to link them by a unique identifier
                     doc1_index = (data_keys[i], doc1)
                     doc2_index = (data_keys[j], doc2)
                     logger.info(

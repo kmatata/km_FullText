@@ -4,18 +4,18 @@ from utils.config import stop_words
 from utils.envLoader import load_environment_variables
 import os
 from utils.redis_helper import get_redis_connection
-
+from utils.stop_words_utils import enhance_stop_words
 load_environment_variables()
 
-# Specify the custom directory where you want to store NLTK resources
+# custom directory for the NLTK resources
 # non docker env
-# nltk_data_dir = os.path.join(
-#     os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
-# )
-# docker env
 nltk_data_dir = os.path.join(
-    os.path.dirname(__file__), "..", "utils", "nltk_config"
+    os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
 )
+# docker env
+# nltk_data_dir = os.path.join(
+#     os.path.dirname(__file__), "..", "utils", "nltk_config"
+# )
 
 os.makedirs(nltk_data_dir, exist_ok=True)
 
@@ -34,9 +34,11 @@ def load_stop_words_to_redis(stop_words=stop_words):
     if redis_client:
         # Check if the key already exists in Redis
         if not redis_client.exists("tokenized_stop_words"):
+            # Enhance stop words with years
+            enhanced_stop_words = enhance_stop_words(stop_words)
             # Tokenize each stop word phrase
             tokenized_stop_words = set()
-            for stop_word in stop_words:
+            for stop_word in enhanced_stop_words:
                 tokens = word_tokenize(stop_word)
                 tokenized_stop_words.update(tokens)
 

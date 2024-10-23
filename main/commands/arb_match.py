@@ -2,6 +2,7 @@ from utils.redis_helper import (
     get_redis_connection,
     get_tokenized_stop_words,
     create_consumer_group,
+    trim_stream,
 )
 from redis.exceptions import ResponseError
 from utils.tf_idf_utils import process_batch
@@ -71,9 +72,9 @@ def run_tfidf_analysis(prefix, category, period):
                         ].split("-")
                         timestamp = int(timestamp_suffix[0])
                         date_index = timestamp_suffix[1]
-                        message_buffer[date_index][timestamp // TIMESTAMP_DIVISOR].append(
-                            (message_id, data_key, bookmaker)
-                        )
+                        message_buffer[date_index][
+                            timestamp // TIMESTAMP_DIVISOR
+                        ].append((message_id, data_key, bookmaker))
                         logger.info(
                             f"Added message to buffer - Date Index: {date_index}, Timestamp Group: {timestamp // TIMESTAMP_DIVISOR}"
                         )
@@ -157,8 +158,8 @@ def process_time_based_batches(
                     if msg:
                         batch.append(msg)
                         if len(batch) >= batch_stream_count:
-                            logger.info(
-                                f"Batch complete. Processing {len(batch)} messages"
+                            logger.debug(
+                                f"Batch complete\n{batch}. \nProcessing {len(batch)} messages"
                             )
                             process_batch(
                                 redis_db,
@@ -178,7 +179,9 @@ def process_time_based_batches(
                             logger.info(
                                 f"Remaining messages in timestamp group: {len(timestamp_data[timestamp_group])}"
                             )
-                            logger.info("Finished processing time-based batches for the current iteration")
+                            logger.info(
+                                "Finished processing time-based batches for the current iteration"
+                            )
                             break
 
             else:
@@ -189,17 +192,22 @@ def process_time_based_batches(
             # Clean up old messages
             if messages:
                 # Use the timestamp from the most recent message in the group
-                latest_message_time = max(int(msg[1].split(':')[1].split('-')[0]) for msg in messages)
+                latest_message_time = max(
+                    int(msg[1].split(":")[1].split("-")[0]) for msg in messages
+                )
                 group_age = current_timestamp - latest_message_time
-                if group_age > 30:  # Remove groups older than 30secs
-                    logger.info(f"Removing old timestamp group: {timestamp_group}, age: {group_age} seconds")
+                if group_age > 230:  # Remove groups older than 30secs
+                    logger.info(
+                        f"Removing old timestamp group: {timestamp_group}, age: {group_age} seconds"
+                    )
                     del timestamp_data[timestamp_group]
         # Remove empty timestamp groups
         timestamp_data = {k: v for k, v in timestamp_data.items() if v}
         if not timestamp_data:
             logger.info(f"Removing empty date index: {date_index}")
             del message_buffer[date_index]
-    # Final cleanup of any remaining empty date indices
+
+            trim_stream(redis_db, stream_name, 100)
     message_buffer = {k: v for k, v in message_buffer.items() if v}
 
     logger.info(f"current message buffer state: {dict(message_buffer)}")
