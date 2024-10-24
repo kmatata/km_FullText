@@ -5,6 +5,9 @@ from sparse_dot_topn import sp_matmul_topn
 from .common_utils import get_current_date, find, union, generate_match_id
 from .redis_helper import trim_stream
 from collections import defaultdict
+import re
+import difflib
+from datetime import datetime
 
 
 def fetch_data(redis_db, logger, json_keys):
@@ -47,24 +50,154 @@ def format_similarity_results(matrix, logger, documents1, documents2):
 def update_redis_with_grouped_info(
     redis_db, group, index_mapping, stream_key, least_count, stream_name, logger
 ):
-    logger.info(f"Updating Redis with grouped info for {len(group)} items")
+    logger.info(
+        f"Starting Redis update for {len(group)} items in stream: {stream_name}"
+    )
+    logger.debug(f"Processing group indices: {group}")
     grouped_by_start_time = defaultdict(list)
+
+    def parse_datetime(time_str):
+        """Parse datetime string to datetime object"""
+        try:
+            return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse time: {time_str}, error: {e}")
+            return None
+
+    def is_time_similar(time1, time2, max_diff_minutes=0):
+        """Check if two times are within acceptable range"""
+        dt1 = parse_datetime(time1)
+        dt2 = parse_datetime(time2)
+        if not (dt1 and dt2):
+            return False
+
+        time_diff = abs((dt1 - dt2).total_seconds() / 60)
+        logger.debug(
+            f"Time difference between {time1} and {time2}: {time_diff} minutes"
+        )
+        return time_diff == max_diff_minutes
+
+    def compare_team_names(teams1, teams2, start_time1, start_time2):
+        """Compare team names considering age groups"""
+
+        def extract_age_group(team_name):
+            match = re.search(r"\bU\d+\b", team_name.upper())
+            age_group = match.group(0) if match else None
+            logger.debug(
+                f"Extracted age group '{age_group}' from team name '{team_name}'"
+            )
+            return age_group
+
+        logger.debug(f"Comparing teams - Team1: '{teams1}', Team2: '{teams2}'")
+
+        # First check if times are similar
+        if not is_time_similar(start_time1, start_time2):
+            logger.info(f"Times too different: {start_time1} vs {start_time2}")
+            return False
+
+
+        # Split team names if they contain semicolons
+        teams1_list = teams1.split(";") if isinstance(teams1, str) else [teams1]
+        teams2_list = teams2.split(";") if isinstance(teams2, str) else [teams2]
+
+        # Sort teams to ensure consistent comparison
+        teams1_list = sorted(teams1_list)
+        teams2_list = sorted(teams2_list)
+
+        # If number of teams doesn't match, they're different matches
+        if len(teams1_list) != len(teams2_list):
+            logger.debug(
+                f"Different number of teams: {len(teams1_list)} vs {len(teams2_list)}"
+            )
+            return False
+
+        for t1, t2 in zip(teams1_list, teams2_list):
+            age_group1 = extract_age_group(t1)
+            age_group2 = extract_age_group(t2)
+
+            # If age groups don't match, consider them different teams
+            if age_group1 != age_group2:
+                logger.debug(
+                    f"Age groups don't match: '{age_group1}' vs '{age_group2}'"
+                )
+                continue
+
+            # Remove age group suffixes for base name comparison
+            base_name1 = re.sub(r"\s*U\d+\s*", "", t1).strip()
+            base_name2 = re.sub(r"\s*U\d+\s*", "", t2).strip()
+
+            similarity = difflib.SequenceMatcher(
+                None, base_name1.lower(), base_name2.lower()
+            ).ratio()
+            logger.debug(
+                f"Name similarity between '{base_name1}' and '{base_name2}': {similarity:.4f}"
+            )
+            if similarity > 0.71:
+                logger.info(
+                    f"Teams matched: '{t1}' and '{t2}' with similarity {similarity:.4f}"
+                )
+                return True
+        logger.debug("No matching teams found")
+        return False
+
     for index in group:
         try:
             data_key, path = index_mapping[index]
+            logger.info(
+                f"Processing index {index} - Data key: {data_key}, Path: {path}"
+            )
             json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
             # Extract start_time from the JSON object
             start_time = json_obj.get("start_time")
 
             if start_time:
-                grouped_by_start_time[start_time].append((data_key, path, json_obj))
+                current_teams = list(json_obj.get("teams", {}).keys())[0]
+                logger.info(f"Extracted teams from current entry: {current_teams}")
+                # Check if this entry should be grouped with existing entries
+                matching_group = None
+                for existing_start_time, entries in grouped_by_start_time.items():
+                    logger.debug(
+                        f"Checking against group with start time: {existing_start_time}"
+                    )
+                    for existing_entry in entries:
+                        existing_teams = list(
+                            existing_entry[2].get("teams", {}).keys()
+                        )[0]
+                        logger.debug(f"Comparing with existing teams: {existing_teams}")
+                        if compare_team_names(
+                            current_teams,
+                            existing_teams,
+                            start_time,
+                            existing_entry[2].get("start_time"),
+                        ):
+                            matching_group = existing_start_time
+                            logger.info(
+                                f"Found matching group with start time: {existing_start_time}"
+                            )
+                            break
+                    if matching_group:
+                        break
+
+                # Add to matching group or create new group
+                target_start_time = matching_group if matching_group else start_time
+                grouped_by_start_time[target_start_time].append(
+                    (data_key, path, json_obj)
+                )
+                logger.info(f"Added to group with start time: {target_start_time}")
+                logger.debug(
+                    f"Group now contains {len(grouped_by_start_time[target_start_time])} entries"
+                )
             else:
                 logger.warning(
                     f"No start_time found in JSON object for key {data_key}, path {path}"
                 )
         except Exception as e:
-            logger.critical(f"Error processing group item: {e}")
+            logger.warning(f"Error processing group item: {e}")
+    logger.info(f"Processing {len(grouped_by_start_time)} groups for Redis updates")
     for start_time, entries in grouped_by_start_time.items():
+        logger.info(
+            f"Processing group with start time {start_time}, containing {len(entries)} entries"
+        )
         if len(entries) >= least_count:
             try:
                 match_id = generate_match_id()
@@ -78,7 +211,9 @@ def update_redis_with_grouped_info(
                     team_name = list(json_obj.get("teams", {}).keys())[0]
                     match_team_objects[bookmaker] = json_obj
                     team_names.append(team_name)
+                    logger.debug(f"Added team {team_name} from bookmaker {bookmaker}")
                 team_names_str = ";".join(team_names)
+                logger.info(f"Final team names string: {team_names_str}")
                 redis_db.json().set(
                     match_key,
                     Path.root_path(),
@@ -99,7 +234,9 @@ def update_redis_with_grouped_info(
                     f"Updated match info in Redis - Key: {match_key}, Teams: {team_names_str}, Match ID: {match_id}, Stream: {stream_key}, Start Time: {start_time}"
                 )
             except Exception as e:
-                logger.critical(f"Error updating Redis for start time {start_time}: {e}")
+                logger.critical(
+                    f"Error updating Redis for start time {start_time}: {e}"
+                )
 
 
 def process_batch(
@@ -153,7 +290,7 @@ def process_batch(
                 matrix1 = tfidf_matrices[data_keys[i]]
                 matrix2 = tfidf_matrices[data_keys[j]]
                 C = sp_matmul_topn(
-                    matrix1, matrix2.transpose(), top_n=2000, threshold=0.5
+                    matrix1, matrix2.transpose(), top_n=2000, threshold=0.56
                 )
                 formatted_results = format_similarity_results(
                     C,
@@ -163,8 +300,6 @@ def process_batch(
                 )
 
                 for doc1, doc2, score in formatted_results:
-                    # Resolve or generate unique match ID
-                    # Here you would update Redis based on doc1 and doc2 paths to link them by a unique identifier
                     doc1_index = (data_keys[i], doc1)
                     doc2_index = (data_keys[j], doc2)
                     logger.info(

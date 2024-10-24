@@ -49,15 +49,15 @@ def stop_containers(docker_client: docker.DockerClient, containers):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        logger.warning("Usage: python match_launcher/start_tfidf_containers.py <lst|xtr> <data_source: live|upcoming>")
+        logger.warning(
+            "Usage: python match_launcher/start_tfidf_containers.py <lst|xtr> <data_source: live|upcoming>"
+        )
         sys.exit(1)
 
     prefix = sys.argv[1]
     data_source = sys.argv[2]
     docker_client = docker.from_env()
-    extractor_types = (
-        ["btts", "three_way", "double_chance"] if prefix == "lst" else ["btts"]
-    )
+    extractor_types = ["btts", "three_way", "double_chance"]
     # extractor_types = (
     #     ["btts"] if prefix == "lst" else ["btts"]
     # )
@@ -105,4 +105,4 @@ if __name__ == "__main__":
             logger.warning("Stopping containers and exiting...")
             sys.exit()
         logger.info("waiting")
-        time.sleep(60)
+        time.sleep(180)

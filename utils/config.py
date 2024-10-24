@@ -1,6 +1,17 @@
 stop_words = [
+    "(",
+    ")",
     ";",
     "/",
+    "-",
+    ".",
+    ",",
+    "reserves",
+    "bb",
+    "belediye",
+    "belediyespor",
+    "pfc",
+    "al",
     "sportsklubben",
     "sk",
     "vfv",
@@ -100,6 +111,7 @@ stop_words = [
     "men",
     "womens",
     "women",
+    "wom",
     "as",
     "sportiva",
     "junior",
@@ -123,7 +135,7 @@ stop_words = [
     "asd",
     "wfc",
     "saint",
-    "st."
+    "st"
 ]
 
 stream_config = {
@@ -132,20 +144,20 @@ stream_config = {
         "upcoming": "BTTS_upcoming_stream",
         "least_count": 2,
         "lst": 3,
-        "xtr": 2,
+        "xtr": 3,
     },
     "double_chance": {
         "live": "DOUBLE_CHANCE_live_stream",
         "upcoming": "DOUBLE_CHANCE_upcoming_stream",
         "least_count": 3,
         "lst": 3,
-        "xtr": 2,
+        "xtr": 3,
     },
     "three_way": {
         "live": "THREE_WAY_live_stream",
         "upcoming": "THREE_WAY_upcoming_stream",
         "least_count": 3,
         "lst": 3,
-        "xtr": 2,
+        "xtr": 3,
     },
 }
