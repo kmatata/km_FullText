@@ -56,7 +56,90 @@ def update_redis_with_grouped_info(
     logger.debug(f"Processing group indices: {group}")
     grouped_by_start_time = defaultdict(list)
 
-    
+    def parse_datetime(time_str):
+        """Parse datetime string to datetime object"""
+        try:
+            return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse time: {time_str}, error: {e}")
+            return None
+
+    def is_time_similar(time1, time2, max_diff_minutes=0):
+        """Check if two times are within acceptable range"""
+        dt1 = parse_datetime(time1)
+        dt2 = parse_datetime(time2)
+        if not (dt1 and dt2):
+            return False
+
+        time_diff = abs((dt1 - dt2).total_seconds() / 60)
+        logger.debug(
+            f"Time difference between {time1} and {time2}: {time_diff} minutes"
+        )
+        return time_diff == max_diff_minutes
+
+    def compare_team_names(teams1, teams2, start_time1, start_time2):
+        """Compare team names considering age groups"""
+
+        def extract_age_group(team_name):
+            match = re.search(r"\bU\d+\b", team_name.upper())
+            age_group = match.group(0) if match else None
+            logger.debug(
+                f"Extracted age group '{age_group}' from team name '{team_name}'"
+            )
+            return age_group
+
+        logger.debug(f"Comparing teams - Team1: '{teams1}', Team2: '{teams2}'")
+
+        # First check if times are similar
+        if not is_time_similar(start_time1, start_time2):
+            logger.info(f"Times too different: {start_time1} vs {start_time2}")
+            return False
+
+
+        # Split team names if they contain semicolons
+        teams1_list = teams1.split(";") if isinstance(teams1, str) else [teams1]
+        teams2_list = teams2.split(";") if isinstance(teams2, str) else [teams2]
+
+        # Sort teams to ensure consistent comparison
+        teams1_list = sorted(teams1_list)
+        teams2_list = sorted(teams2_list)
+
+        # If number of teams doesn't match, they're different matches
+        if len(teams1_list) != len(teams2_list):
+            logger.debug(
+                f"Different number of teams: {len(teams1_list)} vs {len(teams2_list)}"
+            )
+            return False
+
+        for t1, t2 in zip(teams1_list, teams2_list):
+            age_group1 = extract_age_group(t1)
+            age_group2 = extract_age_group(t2)
+
+            # If age groups don't match, consider them different teams
+            if age_group1 != age_group2:
+                logger.debug(
+                    f"Age groups don't match: '{age_group1}' vs '{age_group2}'"
+                )
+                continue
+
+            # Remove age group suffixes for base name comparison
+            base_name1 = re.sub(r"\s*U\d+\s*", "", t1).strip()
+            base_name2 = re.sub(r"\s*U\d+\s*", "", t2).strip()
+
+            similarity = difflib.SequenceMatcher(
+                None, base_name1.lower(), base_name2.lower()
+            ).ratio()
+            logger.debug(
+                f"Name similarity between '{base_name1}' and '{base_name2}': {similarity:.4f}"
+            )
+            if similarity > 0.71:
+                logger.info(
+                    f"Teams matched: '{t1}' and '{t2}' with similarity {similarity:.4f}"
+                )
+                return True
+        logger.debug("No matching teams found")
+        return False
+
     for index in group:
         try:
             data_key, path = index_mapping[index]
