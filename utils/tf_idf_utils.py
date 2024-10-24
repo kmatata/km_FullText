@@ -5,6 +5,9 @@ from sparse_dot_topn import sp_matmul_topn
 from .common_utils import get_current_date, find, union, generate_match_id
 from .redis_helper import trim_stream
 from collections import defaultdict
+import re
+import difflib
+from datetime import datetime
 
 
 def fetch_data(redis_db, logger, json_keys):
@@ -47,26 +50,71 @@ def format_similarity_results(matrix, logger, documents1, documents2):
 def update_redis_with_grouped_info(
     redis_db, group, index_mapping, stream_key, least_count, stream_name, logger
 ):
-    logger.info(f"Updating Redis with grouped info for {len(group)} items")
-    logger.debug(group)
+    logger.info(
+        f"Starting Redis update for {len(group)} items in stream: {stream_name}"
+    )
+    logger.debug(f"Processing group indices: {group}")
     grouped_by_start_time = defaultdict(list)
+
+    
     for index in group:
         try:
             data_key, path = index_mapping[index]
-            logger.info(f"data_key: {data_key} \npath: {path}")
+            logger.info(
+                f"Processing index {index} - Data key: {data_key}, Path: {path}"
+            )
             json_obj = redis_db.json().get(data_key, Path(f"$.[{path}]"))[0]
             # Extract start_time from the JSON object
             start_time = json_obj.get("start_time")
 
             if start_time:
-                grouped_by_start_time[start_time].append((data_key, path, json_obj))
+                current_teams = list(json_obj.get("teams", {}).keys())[0]
+                logger.info(f"Extracted teams from current entry: {current_teams}")
+                # Check if this entry should be grouped with existing entries
+                matching_group = None
+                for existing_start_time, entries in grouped_by_start_time.items():
+                    logger.debug(
+                        f"Checking against group with start time: {existing_start_time}"
+                    )
+                    for existing_entry in entries:
+                        existing_teams = list(
+                            existing_entry[2].get("teams", {}).keys()
+                        )[0]
+                        logger.debug(f"Comparing with existing teams: {existing_teams}")
+                        if compare_team_names(
+                            current_teams,
+                            existing_teams,
+                            start_time,
+                            existing_entry[2].get("start_time"),
+                        ):
+                            matching_group = existing_start_time
+                            logger.info(
+                                f"Found matching group with start time: {existing_start_time}"
+                            )
+                            break
+                    if matching_group:
+                        break
+
+                # Add to matching group or create new group
+                target_start_time = matching_group if matching_group else start_time
+                grouped_by_start_time[target_start_time].append(
+                    (data_key, path, json_obj)
+                )
+                logger.info(f"Added to group with start time: {target_start_time}")
+                logger.debug(
+                    f"Group now contains {len(grouped_by_start_time[target_start_time])} entries"
+                )
             else:
                 logger.warning(
                     f"No start_time found in JSON object for key {data_key}, path {path}"
                 )
         except Exception as e:
-            logger.critical(f"Error processing group item: {e}")
+            logger.warning(f"Error processing group item: {e}")
+    logger.info(f"Processing {len(grouped_by_start_time)} groups for Redis updates")
     for start_time, entries in grouped_by_start_time.items():
+        logger.info(
+            f"Processing group with start time {start_time}, containing {len(entries)} entries"
+        )
         if len(entries) >= least_count:
             try:
                 match_id = generate_match_id()
@@ -80,7 +128,9 @@ def update_redis_with_grouped_info(
                     team_name = list(json_obj.get("teams", {}).keys())[0]
                     match_team_objects[bookmaker] = json_obj
                     team_names.append(team_name)
+                    logger.debug(f"Added team {team_name} from bookmaker {bookmaker}")
                 team_names_str = ";".join(team_names)
+                logger.info(f"Final team names string: {team_names_str}")
                 redis_db.json().set(
                     match_key,
                     Path.root_path(),
@@ -101,7 +151,9 @@ def update_redis_with_grouped_info(
                     f"Updated match info in Redis - Key: {match_key}, Teams: {team_names_str}, Match ID: {match_id}, Stream: {stream_key}, Start Time: {start_time}"
                 )
             except Exception as e:
-                logger.critical(f"Error updating Redis for start time {start_time}: {e}")
+                logger.critical(
+                    f"Error updating Redis for start time {start_time}: {e}"
+                )
 
 
 def process_batch(

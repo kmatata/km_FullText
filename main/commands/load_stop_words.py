@@ -9,13 +9,13 @@ load_environment_variables()
 
 # custom directory for the NLTK resources
 # non docker env
-nltk_data_dir = os.path.join(
-    os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
-)
-# docker env
 # nltk_data_dir = os.path.join(
-#     os.path.dirname(__file__), "..", "utils", "nltk_config"
+#     os.path.dirname(__file__), "..", "..", "utils", "nltk_config"
 # )
+# docker env
+nltk_data_dir = os.path.join(
+    os.path.dirname(__file__), "..", "utils", "nltk_config"
+)
 
 os.makedirs(nltk_data_dir, exist_ok=True)
 
