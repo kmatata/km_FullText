@@ -196,7 +196,7 @@ def process_time_based_batches(
                     int(msg[1].split(":")[1].split("-")[0]) for msg in messages
                 )
                 group_age = current_timestamp - latest_message_time
-                if group_age > 230:  # Remove groups older than 30secs
+                if group_age > 100:  # Remove groups older than 30secs
                     logger.info(
                         f"Removing old timestamp group: {timestamp_group}, age: {group_age} seconds"
                     )
@@ -207,7 +207,7 @@ def process_time_based_batches(
             logger.info(f"Removing empty date index: {date_index}")
             del message_buffer[date_index]
 
-            trim_stream(redis_db, stream_name, 100)
+            # trim_stream(redis_db, stream_name, 100)
     message_buffer = {k: v for k, v in message_buffer.items() if v}
 
     logger.info(f"current message buffer state: {dict(message_buffer)}")
