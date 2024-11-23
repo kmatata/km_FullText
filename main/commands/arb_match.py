@@ -47,7 +47,7 @@ def run_tfidf_analysis(prefix, category, period):
 
         message_buffer = defaultdict(lambda: defaultdict(list))
         logger.info("Entering main processing loop")
-
+        # remember to Acknowledge the messages as processed redis_db.xack(stream_name, group_name, message_id)
         while True:
             try:
                 # `stream_key` contains the key names of the JSON data
