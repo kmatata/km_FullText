@@ -387,6 +387,14 @@ match_words = [
     "vvv",
 ]
 
+ABBREVIATION_MAPPINGS = {
+    "cd": "club deportivo",
+    "rc": "racing club",
+    "ac": "athletic club",
+    "fc": "football club",
+    "sc": "sporting club",
+}
+
 IDENTIFIER_GROUPS = {
     "women": {"women", "womens", "wom", "wfc"},
     "men": {"men", "mens"},
