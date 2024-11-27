@@ -196,7 +196,7 @@ def process_time_based_batches(
                     int(msg[1].split(":")[1].split("-")[0]) for msg in messages
                 )
                 group_age = current_timestamp - latest_message_time
-                if group_age > 100:  # Remove groups older than 30secs
+                if group_age > 90:  # Remove groups older than 30secs
                     logger.info(
                         f"Removing old timestamp group: {timestamp_group}, age: {group_age} seconds"
                     )
