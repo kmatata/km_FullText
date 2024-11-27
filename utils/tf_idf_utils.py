@@ -8,7 +8,7 @@ from collections import defaultdict
 import re
 import difflib
 from datetime import datetime
-from .config import match_words, IDENTIFIER_GROUPS
+from .config import match_words, IDENTIFIER_GROUPS, ABBREVIATION_MAPPINGS
 
 IDENTIFIER_TO_GROUP = {}
 
@@ -105,10 +105,17 @@ def update_redis_with_grouped_info(
         """
         grouped = set()
         raw = set()
+        expanded = set()
 
         for identifier in identifiers:
             # Keep original identifier
             raw.add(identifier)
+            # Expand abbreviations
+            if identifier.lower() in ABBREVIATION_MAPPINGS:
+                expanded_form = ABBREVIATION_MAPPINGS[identifier.lower()]
+                expanded.add(expanded_form)
+                # Add individual words from expanded form
+                expanded.update(expanded_form.split())
             # Add group name if identifier is part of a group
             if identifier in IDENTIFIER_TO_GROUP:
                 group_name = IDENTIFIER_TO_GROUP[identifier]
@@ -117,10 +124,19 @@ def update_redis_with_grouped_info(
                     f"Mapped identifier '{identifier}' to group '{group_name}'"
                 )
 
+        # Add expanded forms to raw set
+        raw.update(expanded)
+
         logger.debug(f"Raw identifiers: {raw}")
+        logger.debug(f"Expanded identifiers: {expanded}")
         logger.debug(f"Grouped identifiers: {grouped}")
 
-        return {"raw": raw, "grouped": grouped, "semantic_count": len(grouped)}
+        return {
+            "raw": raw,
+            "grouped": grouped,
+            "expanded": expanded,
+            "semantic_count": len(grouped),
+        }
 
     def calculate_identifier_similarity(identifiers1, identifiers2):
         """
@@ -198,7 +214,9 @@ def update_redis_with_grouped_info(
 
             # Short-circuit on high name similarity
             if name_similarity >= 0.6:
-                logger.debug(f"High name similarity ({name_similarity:.4f}) - short-circuit match")
+                logger.debug(
+                    f"High name similarity ({name_similarity:.4f}) - short-circuit match"
+                )
                 return name_similarity, True
 
             # If neither team has identifiers, use only name similarity
@@ -244,15 +262,30 @@ def update_redis_with_grouped_info(
 
         return min(pair_similarities), True
 
-    def validate_group_consistency(entries, new_teams, new_time):
+    def validate_group_consistency(entries, new_teams, new_time, new_bookmaker):
         """
         Validate that a new entry is consistent with ALL existing entries in a group
         Returns True only if the new entry matches ALL existing entries
         """
         if not entries:
             return False
+        
+        # Create set of existing bookmakers
+        existing_bookmakers = set()
 
         for entry in entries:
+            # Extract bookmaker from existing entry
+            existing_bookmaker = entry[2].get("bookmaker")
+            
+            # Check for duplicate bookmaker
+            if existing_bookmaker == new_bookmaker:
+                logger.info(
+                    f"Duplicate bookmaker found: {new_bookmaker}"
+                )
+                return False
+                
+            existing_bookmakers.add(existing_bookmaker)
+            
             existing_teams = list(entry[2].get("teams", {}).keys())[0]
             existing_time = entry[2].get("start_time")
             if not is_time_similar(new_time, existing_time):
@@ -285,7 +318,7 @@ def update_redis_with_grouped_info(
             for group_id, entries in grouped_by_start_time[start_time].items():
                 logger.debug(f"Checking against group with id: {group_id}")
                 # Only match if current teams match ALL teams in the group
-                if validate_group_consistency(entries, current_teams, start_time):
+                if validate_group_consistency(entries, current_teams, start_time, json_obj.get("bookmaker")):
                     matching_group_id = group_id
                     logger.info(f"Found matching subgroup: id -> {group_id}")
                     break
