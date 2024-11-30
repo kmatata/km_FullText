@@ -56,7 +56,7 @@ def format_similarity_results(matrix, logger, documents1, documents2):
 
 
 def update_redis_with_grouped_info(
-    redis_db, group, index_mapping, stream_key, least_count, stream_name, logger
+    redis_db, group, index_mapping, stream_key, least_count, stream_name, period, logger
 ):
     """
     Compare team names with both annotated and plain team names, using intelligent
@@ -86,7 +86,7 @@ def update_redis_with_grouped_info(
             logger.error(f"Failed to parse time: {time_str}, error: {e}")
             return None
 
-    def is_time_similar(time1, time2, max_diff_minutes=0):
+    def is_time_similar(time1, time2, max_diff_minutes=0, period="upcoming"):
         """Check if two times are within acceptable range"""
         dt1 = parse_datetime(time1)
         dt2 = parse_datetime(time2)
@@ -94,6 +94,15 @@ def update_redis_with_grouped_info(
             return False
 
         time_diff = abs((dt1 - dt2).total_seconds() / 60)
+
+        # For live matches, allow ±25 minute buffer
+        if period == "live":
+            is_within_buffer = time_diff <= 25
+            logger.debug(
+                f"Live match time difference: {time_diff} minutes, within buffer: {is_within_buffer}"
+            )
+            return is_within_buffer
+
         logger.debug(
             f"Time difference between {time1} and {time2}: {time_diff} minutes"
         )
@@ -269,27 +278,27 @@ def update_redis_with_grouped_info(
         """
         if not entries:
             return False
-        
+
         # Create set of existing bookmakers
         existing_bookmakers = set()
 
         for entry in entries:
             # Extract bookmaker from existing entry
             existing_bookmaker = entry[2].get("bookmaker")
-            
+
             # Check for duplicate bookmaker
             if existing_bookmaker == new_bookmaker:
-                logger.info(
-                    f"Duplicate bookmaker found: {new_bookmaker}"
-                )
+                logger.info(f"Duplicate bookmaker found: {new_bookmaker}")
                 return False
-                
+
             existing_bookmakers.add(existing_bookmaker)
-            
+
             existing_teams = list(entry[2].get("teams", {}).keys())[0]
             existing_time = entry[2].get("start_time")
-            if not is_time_similar(new_time, existing_time):
-                logger.info(f"Times not similar: {new_time} vs {existing_time}")
+            if not is_time_similar(new_time, existing_time, period=period):
+                logger.info(
+                    f"Times not similar for {period} period: {new_time} vs {existing_time}"
+                )
                 return False
             similarity, is_valid = compare_team_names(new_teams, existing_teams)
             if not is_valid:
@@ -318,7 +327,9 @@ def update_redis_with_grouped_info(
             for group_id, entries in grouped_by_start_time[start_time].items():
                 logger.debug(f"Checking against group with id: {group_id}")
                 # Only match if current teams match ALL teams in the group
-                if validate_group_consistency(entries, current_teams, start_time, json_obj.get("bookmaker")):
+                if validate_group_consistency(
+                    entries, current_teams, start_time, json_obj.get("bookmaker")
+                ):
                     matching_group_id = group_id
                     logger.info(f"Found matching subgroup: id -> {group_id}")
                     break
@@ -399,6 +410,7 @@ def process_batch(
     tokenized_stop_words,
     stream_key,
     least_count,
+    period,
     logger,
 ):
     # Create reverse mapping for quick lookup
@@ -482,6 +494,7 @@ def process_batch(
                 stream_key,
                 least_count,
                 stream_name,
+                period,
                 logger,
             )
 
