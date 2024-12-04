@@ -92,6 +92,7 @@ def run_tfidf_analysis(prefix, category, period):
                         current_timestamp,
                         least_count,
                         period,
+                        category
                     )
                 else:
                     logger.info("No new messages, sleeping for 2 seconds")
@@ -131,10 +132,11 @@ def process_time_based_batches(
     stream_key,
     current_timestamp,
     least_count,
-    period
+    period,
+    category
 ):
     # Set timeout based on period
-    timeout = 15 if period == "live" else 90  # 15 seconds for live, 90 for upcoming
+    timeout = 45 if period == "live" else 90  # 15 seconds for live, 90 for upcoming
     logger.info(f"Using {timeout} second timeout for {period} period")
 
     logger.info("Starting to process time-based batches")
@@ -175,6 +177,7 @@ def process_time_based_batches(
                                 stream_key,
                                 least_count,
                                 period,
+                                category,
                                 logger,
                             )
                             logger.info("Batch processed successfully")
