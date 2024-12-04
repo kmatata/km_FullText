@@ -1,3 +1,28 @@
+stream_config = {
+    "btts": {
+        "live": "BTTS_live_stream",
+        "upcoming": "BTTS_upcoming_stream",
+        "least_count": 2,
+        "lst": 4,
+        "xtr": 3,
+    },
+    "double_chance": {
+        "live": "DOUBLE_CHANCE_live_stream",
+        "upcoming": "DOUBLE_CHANCE_upcoming_stream",
+        "least_count": 3,
+        "lst": 4,
+        "xtr": 3,
+    },
+    "three_way": {
+        "live": "THREE_WAY_live_stream",
+        "upcoming": "THREE_WAY_upcoming_stream",
+        "least_count": 3,
+        "lst": 4,
+        "xtr": 3,
+    },
+}
+
+
 stop_words = [
     "(",
     ")",
@@ -362,6 +387,14 @@ match_words = [
     "vvv",
 ]
 
+ABBREVIATION_MAPPINGS = {
+    "cd": "club deportivo",
+    "rc": "racing club",
+    "ac": "athletic club",
+    "fc": "football club",
+    "sc": "sporting club",
+}
+
 IDENTIFIER_GROUPS = {
     "women": {"women", "womens", "wom", "wfc"},
     "men": {"men", "mens"},
@@ -384,7 +417,7 @@ IDENTIFIER_GROUPS = {
         "psv",
         "bvb",
     },
-    "association":"ac",
+    "association": "ac",
     "saint": {"saint", "st"},
     "greek": {"pae", "ae", "aek"},
     "club": {"club", "clube"},
@@ -784,28 +817,4 @@ IDENTIFIERS_GROUPED = {
     },
     # Religious/Honorary
     "religious": {"saint", "st"},
-}
-
-stream_config = {
-    "btts": {
-        "live": "BTTS_live_stream",
-        "upcoming": "BTTS_upcoming_stream",
-        "least_count": 2,
-        "lst": 3,
-        "xtr": 3,
-    },
-    "double_chance": {
-        "live": "DOUBLE_CHANCE_live_stream",
-        "upcoming": "DOUBLE_CHANCE_upcoming_stream",
-        "least_count": 3,
-        "lst": 3,
-        "xtr": 3,
-    },
-    "three_way": {
-        "live": "THREE_WAY_live_stream",
-        "upcoming": "THREE_WAY_upcoming_stream",
-        "least_count": 3,
-        "lst": 3,
-        "xtr": 3,
-    },
 }

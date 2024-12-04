@@ -57,7 +57,7 @@ if __name__ == "__main__":
     prefix = sys.argv[1]
     data_source = sys.argv[2]
     docker_client = docker.from_env()
-    extractor_types = ["btts", "three_way", "double_chance"]
+    extractor_types = ["btts", "three_way"]
     # extractor_types = (
     #     ["btts"] if prefix == "lst" else ["btts"]
     # )

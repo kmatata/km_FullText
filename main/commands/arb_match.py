@@ -10,7 +10,6 @@ from collections import defaultdict
 import sys
 from utils.config import stream_config
 import time
-from datetime import datetime, timedelta
 import sys
 import os
 import traceback
@@ -47,7 +46,7 @@ def run_tfidf_analysis(prefix, category, period):
 
         message_buffer = defaultdict(lambda: defaultdict(list))
         logger.info("Entering main processing loop")
-
+        # remember to Acknowledge the messages as processed redis_db.xack(stream_name, group_name, message_id)
         while True:
             try:
                 # `stream_key` contains the key names of the JSON data
@@ -92,6 +91,8 @@ def run_tfidf_analysis(prefix, category, period):
                         stream_key,
                         current_timestamp,
                         least_count,
+                        period,
+                        category
                     )
                 else:
                     logger.info("No new messages, sleeping for 2 seconds")
@@ -131,7 +132,13 @@ def process_time_based_batches(
     stream_key,
     current_timestamp,
     least_count,
+    period,
+    category
 ):
+    # Set timeout based on period
+    timeout = 45 if period == "live" else 90  # 15 seconds for live, 90 for upcoming
+    logger.info(f"Using {timeout} second timeout for {period} period")
+
     logger.info("Starting to process time-based batches")
     for date_index, timestamp_data in list(message_buffer.items()):
         logger.info(f"Processing date index: {date_index}")
@@ -169,6 +176,8 @@ def process_time_based_batches(
                                 tokenized_stop_words,
                                 stream_key,
                                 least_count,
+                                period,
+                                category,
                                 logger,
                             )
                             logger.info("Batch processed successfully")
@@ -196,7 +205,7 @@ def process_time_based_batches(
                     int(msg[1].split(":")[1].split("-")[0]) for msg in messages
                 )
                 group_age = current_timestamp - latest_message_time
-                if group_age > 100:  # Remove groups older than 30secs
+                if group_age > timeout:  # Remove groups older than 30secs
                     logger.info(
                         f"Removing old timestamp group: {timestamp_group}, age: {group_age} seconds"
                     )
@@ -211,13 +220,13 @@ def process_time_based_batches(
     message_buffer = {k: v for k, v in message_buffer.items() if v}
 
     logger.info(f"current message buffer state: {dict(message_buffer)}")
-    logger.info("nothing processed, quitting processing time-based batches")
+    logger.info(f"nothing processed, quitting processing time-based batches for {period}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         logger.warning(
-            "Usage: python -m main.commands.arb_match xtr|lst [btts|double_chance|three_way] [live|upcoming]"
+            "Usage: python -m main.commands.arb_match xtr|lst [btts|three_way] [live|upcoming]"
         )
         sys.exit(1)
     prefix, category, period = sys.argv[1], sys.argv[2], sys.argv[3]
